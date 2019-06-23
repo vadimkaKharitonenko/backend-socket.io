@@ -3,14 +3,47 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const logger = require('morgan');
+const router = express.Router();
 
 const indexRouter = require('./routes/index');
 
 const app = express();
 
-app.get('/accept', function( req, res ) {
-  res.send('------------ ROBIT ______________--------------------');
-  console.log('vse ok');
+var server = app.listen(3001);
+var io = require('socket.io').listen(server);
+
+let userIndex = 0, room_id;
+
+app.post('/register', function( req, res ) {
+  if ( userIndex === 0 ) {
+    room_id = (new Date().getUTCMilliseconds().toString() + new Date().getTime().toString()).toString();
+    prev_id = room_id;
+    userIndex++;
+  } else {
+    userIndex = 0;
+  }
+
+  res.json({ id: room_id });
+});
+
+// создаем соединение с комнатой
+io.on('connection', function(socket){
+  console.log( 'user connected with id ' + room_id );
+  
+  socket.on(room_id + ':status', function() {
+    if ( userIndex > 0 ) {
+      socket.broadcast.emit('chat_room:' + room_id, 'ready');
+    }
+  })
+
+  socket.on(room_id + ':new_message', function( data ) {
+    console.log( data );
+    socket.emit(room_id + ':new_message', { msg: data.msg});
+  })
+  
+  socket.on('disconnect', function(){
+    console.log('user disconnected');
+  });
 });
 
 // view engine setup
@@ -25,9 +58,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 
-// catch 404 and forward to error handler
 app.use(function(req, res, next) {
-  next(createError(404));
+  res.render('index');
+  //next(createError(404));
 });
 
 // error handler
