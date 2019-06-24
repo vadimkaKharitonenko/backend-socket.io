@@ -12,33 +12,43 @@ const app = express();
 var server = app.listen(3001);
 var io = require('socket.io').listen(server);
 
-let userIndex = 0, room_id;
+function random() {
+  return (new Date().getUTCMilliseconds().toString() + new Date().getTime().toString()).toString();
+}
+
+let userIndex = 0, 
+    room_id = random(), 
+    user_id = random();
 
 app.post('/register', function( req, res ) {
+
+  res.json({ connection_id: room_id, user_id: user_id });
+
   if ( userIndex === 0 ) {
-    room_id = (new Date().getUTCMilliseconds().toString() + new Date().getTime().toString()).toString();
-    prev_id = room_id;
+    room_id = random();
     userIndex++;
   } else {
     userIndex = 0;
   }
 
-  res.json({ id: room_id });
+  user_id = random();
 });
 
-// создаем соединение с комнатой
+
 io.on('connection', function(socket){
   console.log( 'user connected with id ' + room_id );
   
   socket.on(room_id + ':status', function() {
     if ( userIndex > 0 ) {
-      socket.broadcast.emit('chat_room:' + room_id, 'ready');
+      io.sockets.emit(room_id + ':new_message', 'ready');
     }
   })
 
   socket.on(room_id + ':new_message', function( data ) {
     console.log( data );
-    socket.emit(room_id + ':new_message', { msg: data.msg});
+    let callback_message = JSON.stringify({ message: data.message, user_id: data.user_id, message_id: random() });
+
+    io.sockets.emit( data.connection_id + ':new_message', callback_message );
   })
   
   socket.on('disconnect', function(){
